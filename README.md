@@ -9,7 +9,7 @@ http://www.rastertek.com/tutdx11.html
 
 ## The so-called 'Getting Started'
 * In the Visual Studio 2017 section it mentions the check boxes to click when you go to add-remove programs->visual studio 2017-> modify. however you also need to click the install button that shows up when you try to make a new project for the 'universal' stuff. This will allow you to make a directx project from the new project menu. 
-   * https://github.com/Microsoft/DirectXTK/wiki/Getting-Started
+  * https://github.com/Microsoft/DirectXTK/wiki/Getting-Started
 
 
 ## The so-called "Roadmap for Desktop DirectX apps"
