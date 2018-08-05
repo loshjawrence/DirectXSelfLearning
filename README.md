@@ -3,9 +3,9 @@ Learn and play around with directx. This is all note-to-self style for future re
 
 ## Useful tutorial series
 * For modern configuration/setup of directx:
-http://www.rastertek.com/tutdx11s2.html
+  * http://www.rastertek.com/tutdx11s2.html
 * Follow the rest here:
-http://www.rastertek.com/tutdx11.html
+  * http://www.rastertek.com/tutdx11.html
 
 ## The so-called 'Getting Started'
 * In the Visual Studio 2017 section it mentions the check boxes to click when you go to add-remove programs->visual studio 2017-> modify. however you also need to click the install button that shows up when you try to make a new project for the 'universal' stuff. This will allow you to make a directx project from the new project menu. 
