@@ -2,9 +2,9 @@
 Learn and play around with directx. This is all note-to-self style for future reference.
 
 ## Useful tutorial series
-### For modern configuration/setup of directx:
+* For modern configuration/setup of directx:
 http://www.rastertek.com/tutdx11s2.html
-### Follow the rest here:
+* Follow the rest here:
 http://www.rastertek.com/tutdx11.html
 
 ## The so-called 'Getting Started'
