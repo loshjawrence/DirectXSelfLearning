@@ -1,7 +1,7 @@
 #pragma once
 
 #include <windows.h>
-#include <d3dclass.h>
+#include "d3dclass.h"
 
 // GLOBALS
 const bool FULL_SCREEN = false;
@@ -24,6 +24,6 @@ private:
 	bool Render();
 
 private:
-	D3DClass * m_Direct3D;
+	D3DClass* m_Direct3D;
 };
 

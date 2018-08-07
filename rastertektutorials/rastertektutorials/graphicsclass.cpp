@@ -16,7 +16,7 @@ GraphicsClass::~GraphicsClass()
 
 bool GraphicsClass::Initialize(int screenWidth, int screenHeight, HWND hwnd)
 {
-	D3DClass m_Direct3d = new D3DClass();
+	m_Direct3D = new D3DClass();
 	if (m_Direct3D == nullptr)
 		return false;
 

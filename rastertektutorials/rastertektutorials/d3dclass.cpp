@@ -44,15 +44,6 @@ bool D3DClass::Initialize(
 		will degrade performance and give us annoying errors in the debug output.
 	*/
 
-	DXGI_SWAP_CHAIN_DESC swapChainDesc;
-	D3D_FEATURE_LEVEL featureLevel;
-	ID3D11Texture2D* backBufferPtr;
-	D3D11_TEXTURE2D_DESC depthBufferDesc;
-	D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
-	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc;
-	D3D11_RASTERIZER_DESC rasterDesc;
-	D3D11_VIEWPORT viewport;
-	float fieldOfView, screenAspect;
 
 	// Create a DirectX graphics interface factory.
 	IDXGIFactory* factory;
@@ -145,6 +136,7 @@ bool D3DClass::Initialize(
 	*/
 
 	// Initialize the swap chain description.
+	DXGI_SWAP_CHAIN_DESC swapChainDesc;
 	ZeroMemory(&swapChainDesc, sizeof(swapChainDesc));
 
 	// Set to a single back buffer.
@@ -199,7 +191,7 @@ bool D3DClass::Initialize(
 	// supporting multiple versions or running on lower end hardware. 
 
 	// Set the feature level to DirectX 11.
-	featureLevel = D3D_FEATURE_LEVEL_11_1;
+	D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_1;
 
 	/*
 		Now that the swap chain description and feature level have been filled out we can create the swap chain,
@@ -232,5 +224,251 @@ bool D3DClass::Initialize(
 	*/
 	
 	// Get the pointer to the back buffer.
+	ID3D11Texture2D* backBufferPtr;
+	result = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&backBufferPtr);
+	if (FAILED(result))
+		return false;
 
+	// Create the render target view with the back buffer pointer
+	result = m_device->CreateRenderTargetView(backBufferPtr, nullptr, &m_renderTargetView);
+	if (FAILED(result))
+		return false;
+
+	// Release pointer to the back buffer as we no longer need it.
+	backBufferPtr->Release();
+	backBufferPtr = nullptr;
+
+	/*
+		Set up the depth buffer. It will use a stencil as well.
+		It is simply a 2d texture and we'll tell dx to use it for the depth buffer and depth stencil
+	*/
+	// Set up the depth part
+	D3D11_TEXTURE2D_DESC depthBufferDesc;
+	ZeroMemory(&depthBufferDesc, sizeof(depthBufferDesc));
+	depthBufferDesc.Width = screenWidth;
+	depthBufferDesc.Height = screenHeight;
+	depthBufferDesc.MipLevels = 1;
+	depthBufferDesc.ArraySize = 1;
+	depthBufferDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // Depth 24, Stencil 8
+	depthBufferDesc.SampleDesc.Count = 1;
+	depthBufferDesc.SampleDesc.Quality = 0;
+	depthBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	depthBufferDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	depthBufferDesc.CPUAccessFlags = 0;
+	depthBufferDesc.MiscFlags = 0;
+
+	result = m_device->CreateTexture2D(&depthBufferDesc, nullptr, &m_depthStencilBuffer);
+	if (FAILED(result))
+		return false;
+
+	// Set up the stencil part
+	D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
+	ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
+	depthStencilDesc.DepthEnable = true;
+	depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	depthStencilDesc.StencilEnable = true;
+	depthStencilDesc.StencilReadMask = 0xFF;
+	depthStencilDesc.StencilWriteMask = 0xFF;
+
+	// What to do for front facing pixels
+	depthStencilDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+	depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+	// What to do for back facing pixels
+	depthStencilDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+	depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+	// Get stencil state base on the descriptor
+	result = m_device->CreateDepthStencilState(&depthStencilDesc, &m_depthStencilState);
+	if (FAILED(result))
+		return false;
+
+	m_deviceContext->OMSetDepthStencilState(m_depthStencilState, 1);
+
+	// Set up the stencil view so dx knows that its at
+	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc;
+	ZeroMemory(&depthStencilViewDesc, sizeof(depthStencilViewDesc));
+	depthStencilViewDesc.Format = depthBufferDesc.Format;
+	depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	depthStencilViewDesc.Texture2D.MipSlice = 0;
+
+	result = m_device->CreateDepthStencilView(m_depthStencilBuffer, &depthStencilViewDesc, &m_depthStencilView);
+	if (FAILED(result))
+		return false;
+
+	// Bind the render target view and depth stencil buffer to the output render pipeline
+	m_deviceContext->OMSetRenderTargets(1, &m_renderTargetView, m_depthStencilView);
+
+	/*
+		Set up rasterizer state
+	*/
+	D3D11_RASTERIZER_DESC rasterDesc;
+	rasterDesc.AntialiasedLineEnable = false;
+	rasterDesc.CullMode = D3D11_CULL_BACK;
+	rasterDesc.DepthBias = 0;
+	rasterDesc.DepthBiasClamp = 0.0f;
+	rasterDesc.DepthClipEnable = true;
+	rasterDesc.FillMode = D3D11_FILL_SOLID;
+	rasterDesc.FrontCounterClockwise = false;;
+	rasterDesc.MultisampleEnable = false;
+	rasterDesc.ScissorEnable = false;
+	rasterDesc.SlopeScaledDepthBias = 0.0f;
+
+	// Get the state based on the description
+	result = m_device->CreateRasterizerState(&rasterDesc, &m_rasterState);
+	if (FAILED(result))
+	{
+		return false;
+	}
+
+	// Now set the rasterizer state
+	m_deviceContext->RSSetState(m_rasterState);
+
+	// The view port also needs to be set up so that dx can map clip space coordinates to the render target space. set this to be the entire size of the window.
+	D3D11_VIEWPORT viewport;
+	viewport.Width = (float)screenWidth;
+	viewport.Height = (float)screenWidth;
+	viewport.MinDepth = 0.0f; // Near
+	viewport.MaxDepth = 1.0f; // Far
+	viewport.TopLeftX = 0.0f; 
+	viewport.TopLeftY = 0.0f;
+
+	// Create the viewport
+	m_deviceContext->RSSetViewports(1, &viewport);
+
+	// Projection and world matrix
+	float fieldOfView = 3.141592654f / 4.0f;
+	float screenAspect = (float)screenWidth / (float)screenHeight;
+	m_projectionMatrix = XMMatrixPerspectiveFovLH(fieldOfView, screenAspect, screenNear, screenDepth);
+	m_worldMatrix = XMMatrixIdentity();
+
+	// Create an orthographics projection matrix for 2D rendering things like UI, text, etc.
+	m_orthoMatrix = XMMatrixOrthographicLH((float)screenWidth, (float)screenHeight, screenNear, screenDepth);
+	return true;
+}
+
+void D3DClass::Shutdown()
+{
+	/*
+		Before cleaning up everything from Initialize, I put in a call to force the swap chain to go into windowed 
+		mode first before releasing any pointers. If this is not done and you try to release the 
+		swap chain in full screen mode it will throw some exceptions.
+		So to avoid that happening we just always force windowed mode before shutting down Direct3D. 
+	*/
+
+    if (m_swapChain)
+    {
+        m_swapChain->SetFullscreenState(false, nullptr);
+    }
+
+    if (m_rasterState)
+    {
+        m_rasterState->Release();
+        m_rasterState = nullptr;
+    }
+
+    if (m_depthStencilView)
+    {
+        m_depthStencilView->Release();
+        m_depthStencilView = nullptr;
+    }
+
+    if (m_depthStencilState)
+    {
+        m_depthStencilState->Release();
+        m_depthStencilState = nullptr;
+    }
+
+    if (m_depthStencilBuffer)
+    {
+        m_depthStencilBuffer->Release();
+        m_depthStencilBuffer = nullptr;
+    }
+
+    if (m_renderTargetView)
+    {
+        m_renderTargetView->Release();
+        m_renderTargetView = nullptr;
+    }
+
+    if (m_deviceContext)
+    {
+        m_deviceContext->Release();
+        m_deviceContext = nullptr;
+    }
+
+    if (m_device)
+    {
+        m_device->Release();
+        m_device = nullptr;
+    }
+
+    if (m_swapChain)
+    {
+        m_swapChain->Release();
+        m_swapChain = nullptr;
+    }
+}
+
+/*
+	BeginScene will be called whenever we are going to draw a new 3D scene at the beginning of each frame.
+	All it does is initializes the buffers so they are blank and ready to be drawn to.
+*/
+void D3DClass::BeginScene(float red, float green, float blue, float alpha)
+{
+	// Set up the color to clear the buffer to
+	float color[4] = { red, green, blue, alpha };
+
+	// Clear the back buffer
+	m_deviceContext->ClearRenderTargetView(m_renderTargetView, color);
+}
+
+/*
+	EndScene Tells the swap chain to display our 3D scene once all 
+	the drawing has completed at the end of each frame. 
+*/
+void D3DClass::EndScene()
+{
+	// Present the back buffer to the screen since rendering is complete
+	// if 1 we lock to the screen refresh rate, 0 we present as fast as possible
+	m_swapChain->Present(m_vsync_enabled ? 1 : 0, 0);
+}
+
+// Some pointless getters...
+ID3D11Device* D3DClass::GetDevice()
+{
+	return m_device;
+}
+
+ID3D11DeviceContext* D3DClass::GetDeviceContext()
+{
+	return m_deviceContext;
+}
+
+void D3DClass::GetProjectionMatrix(XMMATRIX& projectionMatrix)
+{
+	projectionMatrix = m_projectionMatrix;
+}
+
+void D3DClass::GetWorldMatrix(XMMATRIX& worldMatrix)
+{
+	worldMatrix = m_worldMatrix;
+}
+
+
+void D3DClass::GetOrthoMatrix(XMMATRIX& orthoMatrix)
+{
+	orthoMatrix = m_orthoMatrix;
+}
+
+// The last helper function returns by reference the name of the video card and the amount of video memory. Knowing the video card name can help in debugging on different configurations. 
+void D3DClass::GetVideoCardInfo(char* cardName, int& memory)
+{
+	strcpy_s(cardName, 128, m_videoCardDescription);
+	memory = m_videoCardMemory;
 }
